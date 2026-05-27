@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
-function Spokes({ className, style, ...props }: React.ComponentProps<"svg">) {
+function Spokes({ className, style, ...props }: React.ComponentProps<'svg'>) {
   return (
     <>
       <style>{`
@@ -16,10 +16,10 @@ function Spokes({ className, style, ...props }: React.ComponentProps<"svg">) {
         xmlns="http://www.w3.org/2000/svg"
         className={cn(className)}
         style={{
-          animationName: "loading-ui-spokes-spin",
-          animationDuration: "var(--duration, 1s)",
-          animationTimingFunction: "linear",
-          animationIterationCount: "infinite",
+          animationName: 'loading-ui-spokes-spin',
+          animationDuration: 'var(--duration, 1s)',
+          animationTimingFunction: 'linear',
+          animationIterationCount: 'infinite',
           ...style,
         }}
         {...props}
