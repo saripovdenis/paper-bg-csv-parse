@@ -2,6 +2,7 @@ export {
   getCsvParserPoolStats,
   parseCsvFileInMainThread,
   parseCsvFileInWorker,
+  prewarmCsvParserPool,
   terminateCsvParserPool,
 } from './parse';
 export type {
@@ -11,4 +12,5 @@ export type {
   CsvParserPoolStats,
   CsvWorkerParseStats,
   CsvWorkerParseRuntime,
+  CsvWorkerTransferType,
 } from './parse';

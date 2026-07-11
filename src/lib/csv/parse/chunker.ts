@@ -11,6 +11,30 @@ const CARRIAGE_RETURN = 13;
 const LINE_FEED = 10;
 const QUOTE = 34;
 
+export function getCsvTargetChunkSizeBytes(
+  fileSize: number,
+  runtime: CsvWorkerParseRuntime = {},
+) {
+  if (runtime.chunkSizeBytes !== undefined) {
+    return normalizePositiveInteger(runtime.chunkSizeBytes, 'chunkSizeBytes');
+  }
+
+  if (runtime.chunksPerWorker === undefined) {
+    return DEFAULT_CHUNK_SIZE_BYTES;
+  }
+
+  const workerCount = normalizePositiveInteger(
+    runtime.workerCount ?? 2,
+    'workerCount',
+  );
+  const chunksPerWorker = normalizePositiveInteger(
+    runtime.chunksPerWorker,
+    'chunksPerWorker',
+  );
+
+  return Math.max(1, Math.ceil(fileSize / (workerCount * chunksPerWorker)));
+}
+
 export async function findCsvRecordChunks(
   file: File,
   options: CsvParseOptions = {},
@@ -27,10 +51,7 @@ export async function findCsvRecordChunks(
     return options.skipEmptyLines === false ? [createEmptyChunk()] : [];
   }
 
-  const chunkSizeBytes = Math.max(
-    1,
-    Math.floor(runtime.chunkSizeBytes ?? DEFAULT_CHUNK_SIZE_BYTES),
-  );
+  const chunkSizeBytes = getCsvTargetChunkSizeBytes(file.size, runtime);
   const chunks: CsvRecordChunk[] = [];
   let chunkStartByte = 0;
   let chunkStartRow = 1;
@@ -169,4 +190,12 @@ function createEmptyChunk(): CsvRecordChunk {
     startRow: 1,
     endRow: 1,
   };
+}
+
+function normalizePositiveInteger(value: number, name: string) {
+  if (!Number.isFinite(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive number`);
+  }
+
+  return Math.floor(value);
 }

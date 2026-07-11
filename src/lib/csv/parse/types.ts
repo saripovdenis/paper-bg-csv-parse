@@ -5,8 +5,16 @@ export interface CsvParseOptions {
   trimHeaders?: boolean;
 }
 
+export type CsvWorkerTransferType =
+  | 'string'
+  | 'array-buffer'
+  | 'shared-array-buffer';
+
 export interface CsvWorkerParseRuntime {
   chunkSizeBytes?: number;
+  workerCount?: number;
+  chunksPerWorker?: number;
+  transferType?: CsvWorkerTransferType;
 }
 
 export interface CsvParseError {
@@ -18,6 +26,10 @@ export interface CsvParseError {
 export interface CsvWorkerParseStats {
   chunkCount: number;
   chunkSizesBytes: number[];
+  workerCount: number;
+  chunksPerWorker: number;
+  transferType: CsvWorkerTransferType;
+  targetChunkSizeBytes: number;
 }
 
 export interface CsvParseResult {
@@ -54,3 +66,19 @@ export interface CsvRecordChunkParseResult {
   rawRows: string[][];
   errors: CsvParseError[];
 }
+
+export type CsvRecordChunkPayload =
+  | {
+      transferType: 'string';
+      text: string;
+    }
+  | {
+      transferType: 'array-buffer';
+      buffer: ArrayBuffer;
+    }
+  | {
+      transferType: 'shared-array-buffer';
+      buffer: SharedArrayBuffer;
+      byteOffset: number;
+      byteLength: number;
+    };

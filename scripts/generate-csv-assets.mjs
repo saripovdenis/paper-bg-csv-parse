@@ -1,25 +1,34 @@
-import { createWriteStream } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
 import { once } from 'node:events';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rm, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const MEBIBYTE = 1024 * 1024;
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsDir = resolve(rootDir, 'assets');
 
 const files = [
   {
-    name: '01-main-faster-no-freeze.csv',
-    rows: 1_000,
+    name: '01-small-1mib.csv',
+    targetBytes: 1 * MEBIBYTE,
   },
   {
-    name: '02-main-faster-freezes.csv',
-    rows: 10_000,
+    name: '02-medium-10mib.csv',
+    targetBytes: 10 * MEBIBYTE,
   },
   {
-    name: '03-worker-faster-stable.csv',
-    rows: 50_000,
+    name: '03-large-100mib.csv',
+    targetBytes: 100 * MEBIBYTE,
   },
+];
+
+const legacyFileNames = [
+  '01-main-faster-no-freeze.csv',
+  '02-main-faster-freezes.csv',
+  '03-worker-faster-stable.csv',
+  '04-threshold-worker-worthy-freeze.csv',
+  '05-threshold-worker-speed-parity.csv',
 ];
 
 const headers = [
@@ -45,16 +54,13 @@ const statuses = [
 ];
 const regions = ['na', 'eu', 'apac', 'latam', 'mea'];
 const channels = ['web', 'mobile', 'partner', 'retail'];
-const noteParts = [
+const notes = [
   'plain note',
-  'contains comma, inside quoted cell',
+  'contains comma, here',
   'line one\nline two',
-  'escaped ""quote"" inside field',
+  'escaped "quote"',
+  'unicode café 東京',
 ];
-const longNote = Array.from(
-  { length: 50 },
-  (_, index) => noteParts[index % noteParts.length],
-).join(' | ');
 
 function csvCell(value) {
   const text = String(value);
@@ -72,34 +78,60 @@ function makeRow(index) {
     regions[index % regions.length],
     channels[index % channels.length],
     ((index * 7) % 1_000) / 10,
-    longNote,
+    notes[index % notes.length],
   ]
     .map(csvCell)
     .join(',');
 }
 
-async function writeCsv({ name, rows }) {
+async function removePreviousAssets() {
+  const generatedFileNames = files.map(({ name }) => name);
+
+  await Promise.all(
+    [...legacyFileNames, ...generatedFileNames].map((name) =>
+      rm(resolve(assetsDir, name), { force: true }),
+    ),
+  );
+}
+
+async function writeCsv({ name, targetBytes }) {
   const filePath = resolve(assetsDir, name);
   const stream = createWriteStream(filePath, { encoding: 'utf8' });
+  const header = `${headers.join(',')}\n`;
+  let bytesWritten = Buffer.byteLength(header);
+  let rowCount = 0;
 
-  stream.write(`${headers.join(',')}\n`);
+  stream.write(header);
 
-  for (let index = 0; index < rows; index += 1) {
-    if (!stream.write(`${makeRow(index)}\n`)) {
+  while (true) {
+    const line = `${makeRow(rowCount)}\n`;
+    const lineBytes = Buffer.byteLength(line);
+
+    if (bytesWritten + lineBytes > targetBytes) break;
+
+    if (!stream.write(line)) {
       await once(stream, 'drain');
     }
+
+    bytesWritten += lineBytes;
+    rowCount += 1;
   }
 
   stream.end();
   await once(stream, 'finish');
 
   const { size } = await stat(filePath);
+  if (size !== bytesWritten || size > targetBytes) {
+    throw new Error(`Generated size invariant failed for ${name}`);
+  }
+
   console.log(
-    `${name}: ${rows.toLocaleString()} rows, ${(size / 1024 / 1024).toFixed(1)} MiB`,
+    `${name}: ${rowCount.toLocaleString()} rows, ${(size / MEBIBYTE).toFixed(3)} MiB`,
   );
 }
 
 await mkdir(assetsDir, { recursive: true });
+await removePreviousAssets();
 
 for (const file of files) {
   await writeCsv(file);
