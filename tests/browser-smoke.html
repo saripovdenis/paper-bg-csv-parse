@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSV worker pipeline smoke test</title>
+  </head>
+  <body data-status="running">
+    <pre id="result">Running…</pre>
+    <script type="module">
+      import {
+        getCsvParserPoolStats,
+        parseCsvFileInMainThread,
+        parseCsvFileInWorker,
+        prewarmCsvParserPool,
+        terminateCsvParserPool,
+      } from '/src/lib/csv/index.ts';
+
+      const output = document.querySelector('#result');
+
+      function equalResults(left, right) {
+        if (
+          left.fileSize !== right.fileSize ||
+          left.delimiter !== right.delimiter ||
+          left.contentDigest !== right.contentDigest ||
+          left.rowCount !== right.rowCount ||
+          left.columnCount !== right.columnCount ||
+          left.headers.length !== right.headers.length ||
+          left.rows.length !== right.rows.length ||
+          left.errors.length !== right.errors.length
+        ) {
+          return false;
+        }
+
+        for (let index = 0; index < left.headers.length; index += 1) {
+          if (left.headers[index] !== right.headers[index]) return false;
+        }
+
+        for (let row = 0; row < left.rows.length; row += 1) {
+          if (left.rows[row].length !== right.rows[row].length) return false;
+          for (let column = 0; column < left.rows[row].length; column += 1) {
+            if (left.rows[row][column] !== right.rows[row][column])
+              return false;
+          }
+        }
+
+        return JSON.stringify(left.errors) === JSON.stringify(right.errors);
+      }
+
+      try {
+        const response = await fetch('/assets/01-small-1mib.csv');
+        if (!response.ok)
+          throw new Error(`Fixture request failed: ${response.status}`);
+        const file = new File([await response.blob()], '01-small-1mib.csv', {
+          type: 'text/csv',
+          lastModified: 0,
+        });
+
+        await prewarmCsvParserPool(2);
+        const main = await parseCsvFileInMainThread(file);
+        const modes = {};
+
+        for (const transferType of [
+          'string',
+          'array-buffer',
+          'shared-array-buffer',
+        ]) {
+          const result = await parseCsvFileInWorker(
+            file,
+            {},
+            {
+              workerCount: 2,
+              chunksPerWorker: 2,
+              transferType,
+            },
+          );
+          modes[transferType] = {
+            matchesMain: equalResults(main, result),
+            rows: result.rowCount,
+            columns: result.columnCount,
+            errors: result.errors.length,
+            contentDigest: result.contentDigest,
+            workerStats: result.workerStats,
+          };
+        }
+
+        const report = {
+          crossOriginIsolated: globalThis.crossOriginIsolated,
+          main: {
+            rows: main.rowCount,
+            columns: main.columnCount,
+            errors: main.errors.length,
+            contentDigest: main.contentDigest,
+          },
+          modes,
+          poolStats: getCsvParserPoolStats(),
+        };
+        const passed =
+          report.crossOriginIsolated === true &&
+          Object.values(modes).every((mode) => mode.matchesMain);
+
+        document.body.dataset.status = passed ? 'passed' : 'failed';
+        output.textContent = JSON.stringify(report, null, 2);
+        await terminateCsvParserPool(true);
+      } catch (error) {
+        document.body.dataset.status = 'failed';
+        output.textContent =
+          error instanceof Error ? error.stack : String(error);
+      }
+    </script>
+  </body>
+</html>
