@@ -546,6 +546,7 @@ function CurrentProgressCard({
   const stopping = stopPending || (runner.active && state.status !== 'running');
   const paused =
     !stopping && state.status === 'idle' && state.sessionId !== null;
+  const running = !stopping && state.status === 'running';
   const statusLabel = !hydrated
     ? text.loading
     : stopping
@@ -613,11 +614,15 @@ function CurrentProgressCard({
           {hydrated ? (
             <div
               className={cn(
-                'h-full min-w-3 rounded-full transition-transform duration-200 [transform-origin:left] motion-reduce:transition-none',
+                'relative h-full min-w-3 overflow-hidden rounded-full transition-transform duration-200 [transform-origin:left] motion-reduce:transition-none',
                 paused ? 'bg-yellow-500' : 'bg-emerald-400',
               )}
               style={{ transform: `scaleX(${progress.fraction})` }}
-            />
+            >
+              {running && (
+                <span aria-hidden="true" className="dashboard-progress-sheen" />
+              )}
+            </div>
           ) : (
             <Skeleton className="block h-full w-full rounded-full bg-white/15" />
           )}

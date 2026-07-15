@@ -134,3 +134,40 @@
     opacity: 0.55;
   }
 }
+
+.dashboard-progress-sheen {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 38%;
+  transform: translateX(-120%) skewX(-16deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 52%),
+    transparent
+  );
+  animation: dashboard-progress-sheen 1.4s linear infinite;
+}
+
+@keyframes dashboard-progress-sheen {
+  to {
+    transform: translateX(360%) skewX(-16deg);
+  }
+}
+
+@keyframes dashboard-progress-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-progress-sheen {
+    inset: 0;
+    width: 100%;
+    transform: none;
+    background: rgb(255 255 255 / 12%);
+    animation: dashboard-progress-breathe 1.4s ease-in-out infinite;
+  }
+}
